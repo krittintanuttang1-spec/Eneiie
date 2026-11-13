@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบโอนเงินระหว่างบัญชี P2P // ธนาคารกลาง</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Sarabun -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- qrcode.js สำหรับสร้าง QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- html5-qrcode สำหรับสแกน QR Code -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Sarabun', 'Inter', 'sans-serif'],
+                        mono: ['Inter', 'monospace']
+                    },
+                    colors: {
+                        bank: {
+                            dark: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155',
+                            primary: '#0284c7',
+                            primaryHover: '#0369a1',
+                            success: '#10b981',
+                            accent: '#f59e0b',
+                            bg: '#090d16'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #090d16;
+            color: #f8fafc;
+        }
+        .bank-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-bank-bg min-h-screen flex flex-col justify-between selection:bg-bank-primary selection:text-white">
+
+    <!-- แถบด้านบนระบบ -->
+    <header class="bg-bank-dark border-b border-bank-border px-4 py-3 sticky top-0 z-50 bank-shadow">
+        <div class="max-w-6xl mx-auto flex flex-wrap justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-bank-primary flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold tracking-wider text-white uppercase">ระบบโอนเงิน P2P ระหว่างเครื่อง</h1>
+                    <p class="text-[10px] text-slate-400">ระบบเคลียริ่งอัตโนมัติแบบเรียลไทม์ v3.0</p>
+                </div>
+            </div>
+
+            <div id="user-status-bar" class="hidden flex items-center space-x-3 mt-2 sm:mt-0 text-xs">
+                <div class="bg-bank-card px-3 py-1.5 rounded-lg border border-bank-border flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-bank-success animate-pulse"></span>
+                    <span class="text-slate-300">บัญชีใช้งาน: <strong id="header-acc-num" class="text-white font-mono">---</strong></span>
+                </div>
+                <button onclick="logoutAccount()" class="bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30 px-3 py-1.5 rounded-lg transition font-medium">
+                    <i class="fa-solid fa-right-from-bracket mr-1"></i> ออกจากระบบ
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- เนื้อหาหลัก -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-8 flex flex-col justify-center">
+
+        <!-- หน้าที่ 1: เข้าสู่ระบบ / สมัครบัญชี -->
+        <div id="screen-auth" class="max-w-md mx-auto w-full bg-bank-card border border-bank-border rounded-2xl p-6 md:p-8 bank-shadow relative overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-bank-primary to-bank-success"></div>
+            
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 rounded-full bg-bank-primary/10 text-bank-primary flex items-center justify-center text-3xl mx-auto mb-3 border border-bank-primary/20">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+                <h2 class="text-xl font-bold text-white">ลงทะเบียน / เปิดบัญชีใหม่</h2>
+                <p class="text-xs text-slate-400 mt-1">เปิดใช้งานเว็บไซต์นี้บนมือถือ แท็บเล็ต หรือต่างแท็บ เพื่อทดสอบการโอนเงินและสแกน QR Code หากันได้ทันที</p>
+            </div>
+
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 uppercase mb-1">ชื่อเจ้าของบัญชี หรือชื่อเครื่อง</label>
+                    <input type="text" id="login-name" required placeholder="เช่น บัญชีของสมชาย หรือ เครื่องมือถือ A" 
+                        class="w-full bg-bank-bg border border-bank-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-bank-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 uppercase mb-1">ยอดเงินเริ่มต้น (บาท)</label>
+                    <input type="number" id="login-balance" required value="5000" min="100" max="1000000" 
+                        class="w-full bg-bank-bg border border-bank-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-bank-primary font-mono">
+                </div>
+
+                <button type="submit" class="w-full bg-bank-primary hover:bg-bank-primaryHover text-white font-bold py-3.5 rounded-xl text-sm uppercase tracking-wider transition shadow-lg flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                    <span>เข้าสู่ระบบกระเป๋าเงิน</span>
+                </button>
+            </form>
+
+            <div class="mt-6 pt-4 border-t border-bank-border text-[11px] text-slate-400 text-center">
+                ระบบซิงค์ข้อมูลผ่าน BroadcastChannel และ LocalStorage อัตโนมัติ
+            </div>
+        </div>
+
+        <!-- หน้าที่ 2: แดชบอร์ดกระเป๋าเงิน & โอนเงิน & QR Code -->
+        <div id="screen-dashboard" class="hidden space-y-6">
+            
+            <!-- สรุปข้อมูลด้านบน -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                
+                <!-- ยอดเงินคงเหลือ -->
+                <div class="bg-bank-card border border-bank-border rounded-2xl p-6 bank-shadow relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs text-slate-400 uppercase tracking-wider">ยอดเงินคงเหลือ</span>
+                        <i class="fa-solid fa-wallet text-bank-primary text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold font-mono text-white mt-1" id="dash-balance">0.00 ฿</div>
+                    <div class="text-[11px] text-slate-400 mt-2">เจ้าของบัญชี: <strong id="dash-owner" class="text-slate-200">---</strong></div>
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-bank-primary"></div>
+                </div>
+
+                <!-- หมายเลขบัญชี -->
+                <div class="bg-bank-card border border-bank-border rounded-2xl p-6 bank-shadow relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs text-slate-400 uppercase tracking-wider">เลขที่บัญชีของคุณ</span>
+                        <i class="fa-solid fa-id-card text-bank-success text-xl"></i>
+                    </div>
+                    <div class="text-lg font-bold font-mono text-white mt-2 select-all" id="dash-acc-id">ACC-XXXXXX</div>
+                    <div class="text-[11px] text-slate-400 mt-2">ใช้รับโอนเงินจากเครื่องอื่น</div>
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-bank-success"></div>
+                </div>
+
+                <!-- สถานะเครือข่าย -->
+                <div class="bg-bank-card border border-bank-border rounded-2xl p-6 bank-shadow relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs text-slate-400 uppercase tracking-wider">สถานะระบบ P2P</span>
+                        <i class="fa-solid fa-network-wired text-bank-accent text-xl"></i>
+                    </div>
+                    <div class="text-sm font-bold text-bank-success mt-3 flex items-center space-x-2">
+                        <span class="w-3 h-3 rounded-full bg-bank-success animate-ping"></span>
+                        <span>เชื่อมต่อสำเร็จ (ONLINE)</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mt-2">บัญชีในเครือข่ายทั้งหมด: <strong id="network-accounts-count" class="text-white">1</strong> บัญชี</div>
+                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-bank-accent"></div>
+                </div>
+
+            </div>
+
+            <!-- ส่วนเครื่องมือหลัก: โอนเงิน, สร้าง QR, สแกน QR, ประวัติ -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- คอลัมน์ซ้าย: ฟอร์มโอนเงิน + สร้าง/สแกน QR Code -->
+                <div class="lg:col-span-6 space-y-6">
+                    
+                    <!-- ฟอร์มโอนเงิน -->
+                    <div class="bg-bank-card border border-bank-border rounded-2xl p-6 bank-shadow">
+                        <h3 class="text-base font-bold text-white mb-4 flex items-center">
+                            <i class="fa-solid fa-money-bill-transfer mr-2 text-bank-primary"></i> โอนเงินให้บัญชีอื่น
+                        </h3>
+
+                        <form onsubmit="handleTransfer(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 uppercase mb-1">เลือกบัญชีปลายทางจากระบบ</label>
+                                <select id="transfer-recipient" onchange="onRecipientSelect(this.value)"
+                                    class="w-full bg-bank-bg border border-bank-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-bank-primary font-mono">
+                                    <option value="">-- เลือกบัญชีปลายทาง --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 uppercase mb-1">หรือระบุเลขที่บัญชี / สแกน QR</label>
+                                <input type="text" id="transfer-recipient-manual" placeholder="เช่น ACC-123456" 
+                                    class="w-full bg-bank-bg border border-bank-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-bank-primary font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 uppercase mb-1">จำนวนเงิน (บาท)</label>
+                                <input type="number" id="transfer-amount" required min="1" max="10000000" placeholder="0.00" 
+                                    class="w-full bg-bank-bg border border-bank-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-bank-primary font-mono text-lg">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 uppercase mb-1">บันทึกช่วยจำ / ข้อความ</label>
+                                <input type="text" id="transfer-comment" placeholder="เช่น ค่าอาหาร, ค่าสินค้า" 
+                                    class="w-full bg-bank-bg border border-bank-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-bank-primary">
+                            </div>
+
+                            <button type="submit" class="w-full bg-bank-success hover:bg-emerald-600 text-white font-bold py-3.5 rounded-xl text-sm uppercase tracking-wider transition shadow-lg flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-paper-plane"></i>
+                                <span>ยืนยันการโอนเงิน</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- เมนูเครื่องมือ QR Code (สร้าง QR ของฉัน & สแกน QR เครื่องอื่น) -->
+                    <div class="bg-bank-card border border-bank-border rounded-2xl p-6 bank-shadow space-y-4">
+                        <h3 class="text-base font-bold text-white mb-2 flex items-center">
+                            <i class="fa-solid fa-qrcode mr-2 text-bank-accent"></i> ระบบ QR Code สำหรับโอนเงิน
+                        </h3>
+                        <p class="text-xs text-slate-400">ให้เครื่องอื่นใช้กล้องสแกน QR Code ของคุณเพื่อรับเลขที่บัญชีและโอนเงินให้อัตโนมัติ หรือคุณจะกดสแกน QR ของเครื่องอื่นก็ได้เช่นกัน</p>
+
+                        <div class="grid grid-cols-2 gap-3 pt-2">
+                            <button onclick="openMyQRCodeModal()" class="bg-bank-primary hover:bg-bank-primaryHover text-white font-bold py-3 rounded-xl text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-eye"></i>
+                                <span>แสดง QR ของฉัน</span>
+                            </button>
+                            <button onclick="openScannerModal()" class="bg-bank-accent hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-xl text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-camera"></i>
+                                <span>สแกน QR ของผู้อื่น</span>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- คอลัมน์ขวา: ประวัติการทำธุรกรรม -->
+                <div class="lg:col-span-6 bg-bank-card border border-bank-border rounded-2xl p-6 bank-shadow flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4 pb-2 border-b border-bank-border">
+                            <h3 class="text-base font-bold text-white flex items-center">
+                                <i class="fa-solid fa-clock-rotate-left mr-2 text-bank-accent"></i> ประวัติรายการบัญชี
+                            </h3>
+                            <button onclick="clearHistory()" class="text-xs text-slate-400 hover:text-white transition">ล้างประวัติ</button>
+                        </div>
+
+                        <div id="transactions-list" class="space-y-3 overflow-y-auto max-h-[520px] pr-1">
+                            <div class="text-center py-8 text-slate-500 text-xs">ยังไม่มีรายการทำธุรกรรม</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- MODAL 1: แสดง QR Code ของฉัน -->
+    <div id="modal-my-qr" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 hidden p-4">
+        <div class="bg-bank-card border border-bank-border rounded-2xl max-w-sm w-full p-6 bank-shadow text-center space-y-4">
+            <h4 class="font-bold text-white text-base">QR Code สำหรับรับโอนเงิน</h4>
+            <p class="text-xs text-slate-400">สแกน QR นี้จากอีกเครื่อง เพื่อโอนเงินเข้าบัญชีนี้ทันที</p>
+            
+            <div id="qrcode-container" class="bg-white p-4 rounded-xl inline-block mx-auto shadow-inner flex justify-center"></div>
+            
+            <div class="font-mono text-sm text-bank-success font-bold" id="modal-my-acc-text">ACC-XXXXXX</div>
+            
+            <button onclick="closeMyQRCodeModal()" class="w-full bg-bank-primary text-white py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <!-- MODAL 2: สแกน QR Code (กล้อง) -->
+    <div id="modal-scanner" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 hidden p-4">
+        <div class="bg-bank-card border border-bank-border rounded-2xl max-w-md w-full p-6 bank-shadow text-center space-y-4">
+            <h4 class="font-bold text-white text-base">สแกน QR Code บัญชีปลายทาง</h4>
+            <p class="text-xs text-slate-400">หันกล้องไปที่ QR Code ของเครื่องปลายทาง</p>
+            
+            <div id="reader" class="w-full rounded-xl overflow-hidden bg-black border border-bank-border"></div>
+            
+            <button onclick="closeScannerModal()" class="w-full bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition">ยกเลิกการสแกน</button>
+        </div>
+    </div>
+
+    <!-- MODAL 3: กล่องแจ้งเตือนทั่วไป -->
+    <div id="custom-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 hidden p-4">
+        <div class="bg-bank-card border border-bank-border rounded-2xl max-w-sm w-full p-6 bank-shadow text-center space-y-4">
+            <div id="modal-icon" class="w-14 h-14 rounded-full bg-bank-success/20 text-bank-success flex items-center justify-center text-2xl mx-auto border border-bank-success/30">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h4 id="modal-title" class="font-bold text-white text-lg">สำเร็จ</h4>
+            <p id="modal-msg" class="text-xs text-slate-300 leading-relaxed"></p>
+            <button onclick="closeModal()" class="w-full bg-bank-primary hover:bg-bank-primaryHover text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition">ตกลง</button>
+        </div>
+    </div>
+
+    <!-- ฟุตเตอร์ -->
+    <footer class="bg-bank-dark border-t border-bank-border py-4 px-4 text-center text-xs text-slate-500 mt-12">
+        ระบบโอนเงินระหว่างเครื่อง P2P // ปลอดภัยและรวดเร็วด้วย BroadcastChannel & QR Technology
+    </footer>
+
+    <!-- จافาสกริปต์หลักของแอปพลิเคชัน -->
+    <script>
+        // ระบบเชื่อมต่อ P2P ระหว่างแท็บและหน้าต่างด้วย BroadcastChannel
+        const p2pChannel = new BroadcastChannel('bank_p2p_network_channel_th');
+        let currentAccount = null;
+        let html5QrCode = null;
+
+        window.onload = function() {
+            const savedAcc = localStorage.getItem('bank_th_current_account');
+            if(savedAcc) {
+                try {
+                    currentAccount = JSON.parse(savedAcc);
+                    let allAccounts = getAllAccounts();
+                    let existing = allAccounts.find(a => a.id === currentAccount.id);
+                    if(existing) {
+                        currentAccount = existing;
+                    } else {
+                        allAccounts.push(currentAccount);
+                        saveAllAccounts(allAccounts);
+                    }
+                    enterDashboard();
+                } catch(e) {
+                    localStorage.removeItem('bank_th_current_account');
+                }
+            }
+            updateNetworkStats();
+        };
+
+        // รับข้อความจากเครื่องหรือแท็บอื่นแบบเรียลไทม์
+        p2pChannel.onmessage = function(event) {
+            const data = event.data;
+            if(data.type === 'TRANSFER') {
+                const { recipientId, senderId, senderName, amount, comment, timestamp } = data;
+                
+                // หากเงินโอนมายังบัญชีนี้
+                if(currentAccount && currentAccount.id === recipientId) {
+                    currentAccount.balance += amount;
+                    currentAccount.transactions.unshift({
+                        id: 'TX-' + Math.floor(100000 + Math.random() * 900000),
+                        type: 'INCOME',
+                        amount: amount,
+                        counterparty: `${senderName} (${senderId})`,
+                        comment: comment || 'รับโอนเงิน P2P',
+                        time: new Date(timestamp).toLocaleTimeString('th-TH')
+                    });
+                    saveCurrentAccount();
+                    updateDashboardUI();
+                    showModal('ได้รับเงินโอน!', `คุณได้รับเงินจำนวน <strong>${amount.toLocaleString()} บาท</strong> จาก <strong>${senderName}</strong> เรียบร้อยแล้ว`, 'success');
+                }
+                
+                // อัปเดตตารางฐานข้อมูลส่วนกลาง
+                let allAccounts = getAllAccounts();
+                let rc = allAccounts.find(a => a.id === recipientId);
+                if(rc) {
+                    rc.balance += amount;
+                    rc.transactions.unshift({
+                        id: 'TX-' + Math.floor(100000 + Math.random() * 900000),
+                        type: 'INCOME',
+                        amount: amount,
+                        counterparty: senderName,
+                        comment: comment || 'รับโอนเงิน',
+                        time: new Date(timestamp).toLocaleTimeString('th-TH')
+                    });
+                    saveAllAccounts(allAccounts);
+                }
+            } else if(data.type === 'SYNC_ACCOUNTS') {
+                updateNetworkStats();
+            }
+        };
+
+        function getAllAccounts() {
+            const data = localStorage.getItem('bank_th_all_accounts');
+            return data ? JSON.parse(data) : [];
+        }
+
+        function saveAllAccounts(accounts) {
+            localStorage.setItem('bank_th_all_accounts', JSON.stringify(accounts));
+            p2pChannel.postMessage({ type: 'SYNC_ACCOUNTS' });
+        }
+
+        function saveCurrentAccount() {
+            localStorage.setItem('bank_th_current_account', JSON.stringify(currentAccount));
+            let all = getAllAccounts();
+            let idx = all.findIndex(a => a.id === currentAccount.id);
+            if(idx !== -1) {
+                all[idx] = currentAccount;
+            } else {
+                all.push(currentAccount);
+            }
+            saveAllAccounts(all);
+        }
+
+        // ลงทะเบียนเปิดบัญชี
+        function handleLogin(e) {
+            e.preventDefault();
+            const name = document.getElementById('login-name').value.trim();
+            const balance = parseFloat(document.getElementById('login-balance').value);
+            const accId = 'ACC-' + Math.floor(100000 + Math.random() * 900000);
+
+            currentAccount = {
+                id: accId,
+                name: name,
+                balance: balance,
+                transactions: [{
+                    id: 'TX-INIT',
+                    type: 'INCOME',
+                    amount: balance,
+                    counterparty: 'ธนาคารกลาง (เปิดบัญชี)',
+                    comment: 'ยอดเงินตั้งต้น',
+                    time: new Date().toLocaleTimeString('th-TH')
+                }]
+            };
+
+            saveCurrentAccount();
+            enterDashboard();
+            showModal('เปิดบัญชีสำเร็จ', `ยินดีต้อนรับคุณ ${name}\nเลขที่บัญชีของคุณคือ: ${accId}`, 'success');
+        }
+
+        function enterDashboard() {
+            document.getElementById('screen-auth').classList.add('hidden');
+            document.getElementById('screen-dashboard').classList.remove('hidden');
+            document.getElementById('user-status-bar').classList.remove('hidden');
+
+            document.getElementById('dash-owner').innerText = currentAccount.name;
+            document.getElementById('dash-acc-id').innerText = currentAccount.id;
+            document.getElementById('header-acc-num').innerText = currentAccount.id;
+
+            updateDashboardUI();
+            updateNetworkStats();
+        }
+
+        function logoutAccount() {
+            localStorage.removeItem('bank_th_current_account');
+            location.reload();
+        }
+
+        function updateDashboardUI() {
+            document.getElementById('dash-balance').innerText = currentAccount.balance.toLocaleString('th-TH', { style: 'currency', currency: 'THB' });
+            
+            const tList = document.getElementById('transactions-list');
+            tList.innerHTML = "";
+            if(!currentAccount.transactions || currentAccount.transactions.length === 0) {
+                tList.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">ยังไม่มีรายการทำธุรกรรม</div>`;
+                return;
+            }
+
+            currentAccount.transactions.forEach(tx => {
+                const isIncome = tx.type === 'INCOME';
+                const div = document.createElement('div');
+                div.className = "bg-bank-bg p-3.5 rounded-xl border border-bank-border flex items-center justify-between text-xs";
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-9 h-9 rounded-lg ${isIncome ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'} flex items-center justify-center text-sm font-bold">
+                            <i class="fa-solid ${isIncome ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-white">${isIncome ? 'รับเงินโอน' : 'โอนเงินออก'}</div>
+                            <div class="text-[10px] text-slate-400">คู่กรณี: ${tx.counterparty} | ${tx.comment}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-mono font-bold text-sm ${isIncome ? 'text-emerald-400' : 'text-red-400'}">
+                            ${isIncome ? '+' : '-'}${tx.amount.toLocaleString()} ฿
+                        </div>
+                        <div class="text-[10px] text-slate-500">${tx.time}</div>
+                    </div>
+                `;
+                tList.appendChild(div);
+            });
+        }
+
+        function updateNetworkStats() {
+            const all = getAllAccounts();
+            document.getElementById('network-accounts-count').innerText = all.length || 1;
+
+            const select = document.getElementById('transfer-recipient');
+            select.innerHTML = `<option value="">-- เลือกบัญชีปลายทาง --</option>`;
+
+            all.forEach(acc => {
+                if(currentAccount && acc.id === currentAccount.id) return;
+                const opt = document.createElement('option');
+                opt.value = acc.id;
+                opt.textContent = `${acc.name} (${acc.id}) - คงเหลือ: ${acc.balance.toLocaleString()} ฿`;
+                select.appendChild(opt);
+            });
+        }
+
+        function onRecipientSelect(val) {
+            if(val) {
+                document.getElementById('transfer-recipient-manual').value = val;
+            }
+        }
+
+        // ดำเนินการโอนเงิน
+        function handleTransfer(e) {
+            e.preventDefault();
+            let recipientId = document.getElementById('transfer-recipient').value;
+            const manualId = document.getElementById('transfer-recipient-manual').value.trim();
+            if(manualId) recipientId = manualId.toUpperCase();
+
+            const amount = parseFloat(document.getElementById('transfer-amount').value);
+            const comment = document.getElementById('transfer-comment').value.trim() || 'โอนเงิน P2P';
+
+            if(!recipientId) {
+                showModal('เกิดข้อผิดพลาด', 'กรุณาระบุหรือเลือกบัญชีปลายทาง', 'error');
+                return;
+            }
+
+            if(recipientId === currentAccount.id) {
+                showModal('เกิดข้อผิดพลาด', 'ไม่สามารถโอนเงินเข้าบัญชีตัวเองได้', 'error');
+                return;
+            }
+
+            if(amount <= 0) {
+                showModal('เกิดข้อผิดพลาด', 'จำนวนเงินต้องมากกว่า 0 บาท', 'error');
+                return;
+            }
+
+            if(currentAccount.balance < amount) {
+                showModal('ยอดเงินไม่พอ', `ยอดเงินในบัญชีของคุณไม่พอสำหรับโอนจำนวน ${amount.toLocaleString()} บาท`, 'error');
+                return;
+            }
+
+            let allAccounts = getAllAccounts();
+            let recipient = allAccounts.find(a => a.id === recipientId);
+
+            // หักเงินผู้ส่ง
+            currentAccount.balance -= amount;
+            const txTime = new Date().toLocaleTimeString('th-TH');
+            
+            const outboundTx = {
+                id: 'TX-' + Math.floor(100000 + Math.random() * 900000),
+                type: 'EXPENSE',
+                amount: amount,
+                counterparty: recipient ? `${recipient.name} (${recipientId})` : recipientId,
+                comment: comment,
+                time: txTime
+            };
+            currentAccount.transactions.unshift(outboundTx);
+            saveCurrentAccount();
+
+            // เพิ่มเงินผู้รับ (ถ้ามีใน Local Storage เครื่องเดียวกัน)
+            if(recipient) {
+                recipient.balance += amount;
+                recipient.transactions.unshift({
+                    id: 'TX-' + Math.floor(100000 + Math.random() * 900000),
+                    type: 'INCOME',
+                    amount: amount,
+                    counterparty: `${currentAccount.name} (${currentAccount.id})`,
+                    comment: comment,
+                    time: txTime
+                });
+                saveAllAccounts(allAccounts);
+            }
+
+            // ส่งข้อมูลผ่าน BroadcastChannel ไปยังอุปกรณ์อื่น
+            p2pChannel.postMessage({
+                type: 'TRANSFER',
+                recipientId: recipientId,
+                senderId: currentAccount.id,
+                senderName: currentAccount.name,
+                amount: amount,
+                comment: comment,
+                timestamp: Date.now()
+            });
+
+            document.getElementById('transfer-amount').value = '';
+            document.getElementById('transfer-comment').value = '';
+            document.getElementById('transfer-recipient-manual').value = '';
+            document.getElementById('transfer-recipient').value = '';
+
+            updateDashboardUI();
+            updateNetworkStats();
+
+            showModal('โอนเงินสำเร็จ', `โอนเงินจำนวน <strong>${amount.toLocaleString()} บาท</strong> ไปยังบัญชี <strong>${recipientId}</strong> เรียบร้อยแล้ว`, 'success');
+        }
+
+        function clearHistory() {
+            if(confirm('คุณต้องการล้างประวัติการทำธุรกรรมทั้งหมดในบัญชีนี้ใช่หรือไม่?')) {
+                currentAccount.transactions = [];
+                saveCurrentAccount();
+                updateDashboardUI();
+            }
+        }
+
+        // จัดการ QR Code Modal
+        function openMyQRCodeModal() {
+            document.getElementById('modal-my-acc-text').innerText = currentAccount.id;
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = "";
+            
+            // สร้าง QR Code จากเลขที่บัญชี
+            new QRCode(container, {
+                text: currentAccount.id,
+                width: 180,
+                height: 180,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            document.getElementById('modal-my-qr').classList.remove('hidden');
+        }
+
+        function closeMyQRCodeModal() {
+            document.getElementById('modal-my-qr').classList.add('hidden');
+        }
+
+        // จัดการ QR Scanner Modal (กล้องสแกน)
+        function openScannerModal() {
+            document.getElementById('modal-scanner').classList.remove('hidden');
+            
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                (decodedText) => {
+                    // เมื่อสแกนสำเร็จ
+                    document.getElementById('transfer-recipient-manual').value = decodedText.trim().toUpperCase();
+                    closeScannerModal();
+                    showModal('สแกน QR สำเร็จ', `พบเลขที่บัญชีปลายทาง: <strong>${decodedText}</strong>`, 'success');
+                },
+                (errorMessage) => {
+                    // กำลังสแกน...
+                }
+            ).catch((err) => {
+                alert("ไม่สามารถเปิดใช้งานกล้องได้ กรุณาตรวจสอบสิทธิ์การใช้งานกล้อง");
+                closeScannerModal();
+            });
+        }
+
+        function closeScannerModal() {
+            if(html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('modal-scanner').classList.add('hidden');
+                }).catch(() => {
+                    document.getElementById('modal-scanner').classList.add('hidden');
+                });
+            } else {
+                document.getElementById('modal-scanner').classList.add('hidden');
+            }
+        }
+
+        // แสดงกล่องข้อความแจ้งเตือนสวยงาม
+        function showModal(title, msg, type = 'success') {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-msg').innerHTML = msg;
+            
+            const iconDiv = document.getElementById('modal-icon');
+            if(type === 'success') {
+                iconDiv.className = "w-14 h-14 rounded-full bg-bank-success/20 text-bank-success flex items-center justify-center text-2xl mx-auto border border-bank-success/30";
+                iconDiv.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+            } else {
+                iconDiv.className = "w-14 h-14 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center text-2xl mx-auto border border-red-500/30";
+                iconDiv.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i>';
+            }
+
+            document.getElementById('custom-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('custom-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
